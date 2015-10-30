@@ -108,7 +108,8 @@ public class CategorySourceItemTouchCallback extends ItemTouchHelper.SimpleCallb
 
 
                             Ion.with(context).load("POST", "https://www.bazqux.com/reader/api/0/subscription/edit")
-                                    .setHeader("Authorization: GoogleLogin auth", authKey)
+                                    .setHeader("Authorization", "GoogleLogin auth=" + authKey)
+                                    .setHeader("User-Agent", "Palabre")
                                     .addQuery("output", "json")
                                     .addQuery("ac", "edit")
                                     .addQuery("s", initialSource)
@@ -207,7 +208,8 @@ public class CategorySourceItemTouchCallback extends ItemTouchHelper.SimpleCallb
 
 
             Ion.with(context).load("POST", "https://www.bazqux.com/reader/api/0/disable-tag")
-                    .setHeader("Authorization: GoogleLogin auth", authKey)
+                    .setHeader("Authorization", "GoogleLogin auth=" + authKey)
+                    .setHeader("User-Agent", "Palabre")
                     .addQuery("output", "json")
                     .addQuery("s", lastItemDelete)
                     .asString()
@@ -245,7 +247,8 @@ public class CategorySourceItemTouchCallback extends ItemTouchHelper.SimpleCallb
 
 
             Ion.with(context).load("POST", "https://www.bazqux.com/reader/api/0/subscription/edit")
-                    .setHeader("Authorization: GoogleLogin auth", authKey)
+                    .setHeader("Authorization", "GoogleLogin auth=" + authKey)
+                    .setHeader("User-Agent", "Palabre")
                     .setBodyParameters(params)
                     .asString()
                     .setCallback(new FutureCallback<String>() {

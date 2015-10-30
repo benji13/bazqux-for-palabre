@@ -244,6 +244,7 @@ public class MainActivity extends AppCompatActivity implements LoginReceivedList
 
         Ion.with(this).load("POST", "https://www.bazqux.com/reader/api/0/subscription/quickadd?quickadd=" + addFeedText.getText().toString())
                 .setHeader("Authorization", " GoogleLogin auth=" + authKey)
+                .setHeader("User-Agent", "Palabre")
                 .addQuery("output", "json")
                 .asJsonObject()
                 .setCallback(new FutureCallback<JsonObject>() {

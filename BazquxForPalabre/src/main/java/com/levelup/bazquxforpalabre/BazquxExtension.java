@@ -53,6 +53,7 @@ public class BazquxExtension extends PalabreExtension {
         // get user profile
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/user-info?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -105,6 +106,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(context).load("https://www.bazqux.com/reader/api/0/tag/list?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -204,6 +206,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(context).load("https://www.bazqux.com/reader/api/0/subscription/list?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -336,26 +339,26 @@ public class BazquxExtension extends PalabreExtension {
         // retrieve the sources so we can assign articles to sources (if applicable)
         final List<Source> sources = Source.getAll(this);
 
-        final long previousArticleDate = sharedPref.getLong(LATEST_ARTICLE_DATE, 0);
+        // we will save the most recent article date in milliseconds, then store it
+        // so later we can query the API for newer articles only, on a future refresh
+        long latestArticleDate = sharedPref.getLong(LATEST_ARTICLE_DATE, 0);
 
-        String query;
-        if (continuationId == 0) {
-            if (previousArticleDate == 0) {
-                // this is our first refresh, we are going to get articles newer than 3 days
-                long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
-                query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000&nt=" + firstDate;
-            } else {
-                // we do an incremental refresh
-                query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000&nt=" + previousArticleDate;
-
-            }
-        } else {
+        String query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000";
+        if (continuationId != 0) {
             // a continuation id means that the previous request had more data, and that we can query the continuation of our previous request
-            query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000&c=" + continuationId;
+            query += "&c=" + continuationId;
         }
-
+        if (latestArticleDate == 0) {
+            // this is our first refresh, we are going to get articles newer than 3 days
+            long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
+            query += "&ot=" + (firstDate/1000);
+        } else {
+            // we do an incremental refresh
+            query += "&ot=" + (latestArticleDate/1000);
+        }
         Ion.with(this).load(query)
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -375,10 +378,6 @@ public class BazquxExtension extends PalabreExtension {
                             List<Article> allArticles = Article.getAll(BazquxExtension.this);
 
                             if (BuildConfig.DEBUG) Log.d(TAG, "TimeTracking: request done");
-
-                            // we will save the most recent article date in milliseconds, then store it
-                            // so later we can query the API for newer articles only, on a future refresh
-                            long latestArticleDate = 0;
 
                             publishUpdateStatus(new ExtensionUpdateStatus().progress(50));
 
@@ -486,7 +485,7 @@ public class BazquxExtension extends PalabreExtension {
 
 
                             JsonElement continuationObject = result.get("continuation");
-                            if (continuationObject != null && previousArticleDate == 0) {
+                            if (continuationObject != null) {
                                 // we can requery the continuation of our query
                                 Log.d("TOR", "Continuation Id detected, requery " + result.get("continuation").getAsLong());
                                 long newContinuationId = result.get("continuation").getAsLong();
@@ -530,8 +529,9 @@ public class BazquxExtension extends PalabreExtension {
 
         publishUpdateStatus(new ExtensionUpdateStatus().progress(77));
 
-        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/contents?output=json&s=user/-/state/com.google/starred&n=5000")
+        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/contents?output=json&s=user/-/state/com.google/starred&n=1000")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -663,6 +663,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/read&n=10000&nt=" + oldestUnread)
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -726,6 +727,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/edit-tag")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .setBodyParameter(action, "user/-/state/com.google/read")
                 .setBodyParameter("i", items)
                 .asString()
@@ -758,7 +760,8 @@ public class BazquxExtension extends PalabreExtension {
 
         final long timestampNs = timestamp * 1000;
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/mark-all-as-read")
-                .setHeader("Authorization: GoogleLogin auth", authKey)
+                .setHeader("Authorization", "GoogleLogin auth=" + authKey)
+                .setHeader("User-Agent", "Palabre")
                 .setBodyParameter("s", uniqueId)
                 .setBodyParameter("ts", String.valueOf(timestampNs))
                 .asString()
@@ -805,6 +808,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/edit-tag")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .setBodyParameter(action, "user/-/state/com.google/starred")
                 .setBodyParameter("i", items)
                 .asString()
@@ -839,4 +843,3 @@ public class BazquxExtension extends PalabreExtension {
         return j;
     }
 }
-
