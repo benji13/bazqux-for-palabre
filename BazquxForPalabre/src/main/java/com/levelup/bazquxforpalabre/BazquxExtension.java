@@ -387,22 +387,33 @@ public class BazquxExtension extends PalabreExtension {
                             JsonArray items = result.get("items").getAsJsonArray();
                             for (int i = 0; i < items.size(); i++) {
 
+                                // FIXME: duplicated code here and in
+                                // starred items.
+                                // FIXMEs below apply to fetchSaved() too.
                                 String id = items.get(i).getAsJsonObject().get("id").getAsString();
                                 long date = items.get(i).getAsJsonObject().get("crawlTimeMsec").getAsLong();
 
-                                boolean found = false;
-                                for (Article article : allArticles) {
-                                    if (article.getUniqueId().equals(id) && article.getDate().getTime() == date) {
-                                        found = true;
-                                        break;
-                                    }
+                                // FIXME: code below looks for incorrect ID
+                                // and has O(n^2) complexity.
+                                // Anyway it seems that Palabre doesn't
+                                // duplicates articles with the same ID.
+//                                 boolean found = false;
+//                                 for (Article article : allArticles) {
+//                                     if (article.getUniqueId().equals(id) && article.getDate().getTime() == date) {
+//                                         found = true;
+//                                         break;
+//                                     }
 
-                                }
+//                                 }
 
-                                if (found) {
-                                    continue;
-                                }
+//                                 if (found) {
+//                                     continue;
+//                                 }
 
+                                // FIXME:
+                                // Why not
+                                //   item = items.get(i).getAsJsonObject()
+                                //   article.setTitle(item.get("title").as...)
                                 String summary = null;
                                 String title = null;
                                 String author = null;
@@ -438,15 +449,22 @@ public class BazquxExtension extends PalabreExtension {
                                 latestArticleDate = Math.max(latestArticleDate, date);
 
                                 // we need the Palabre internal id for the source
-                                long sourceId = 0;
+                                boolean sourceIdFound = false;
+                                // FIXME: O(n^2). Ineffective when there are
+                                // many feeds.
+                                // Need HashMap of sources or something like this
+                                // for O(1) checking.
                                 for (Source source : sources) {
                                     if (source.getUniqueId().equals(sourceUniqueId)) {
-                                        sourceId = source.getId();
+                                        article.setSourceId(source.getId());
+                                        sourceIdFound = true;
+                                        break;
                                     }
                                 }
 
+                                if (!sourceIdFound)
+                                    continue;
 
-                                article.setSourceId(sourceId);
 
                                 // find a picture within the article/summary using Jsoup.
                                 // Some API/Services provides the picture directly, but that's not the case here
@@ -595,15 +613,18 @@ public class BazquxExtension extends PalabreExtension {
 
 
                                     // we need the Palabre internal id for the source
-                                    long sourceId = 0;
+                                    boolean sourceIdFound = false;
                                     for (Source source : sources) {
                                         if (source.getUniqueId().equals(sourceUniqueId)) {
-                                            sourceId = source.getId();
+                                            starred.setSourceId(source.getId());
+                                            sourceIdFound = true;
+                                            break;
                                         }
                                     }
 
+                                    if (!sourceIdFound)
+                                        continue;
 
-                                    starred.setSourceId(sourceId);
 
                                     // find a picture within the article/summary using Jsoup.
                                     // Some API/Services provides the picture directly, but that's not the case here
@@ -650,18 +671,25 @@ public class BazquxExtension extends PalabreExtension {
         final List<Article> articles = Article.getAll(this);
 
 
-        // we need to find the oldest unread article, and then we will ask Bazqux
+        // FIXME:
+        //   Need to take in account that user can mark already read item
+        //   as unread. So it worth to take all ids.
+        // FIXME:
+        //   Highly inneffectife O(n^2) algorithm as everywhere.
+        //   Need HashMap or something like it to store read state
+        //   and update articles state later.
+        // we need to find the oldest article, and then we will ask Bazqux
         // for the read IDs since then. Then we will check if they are unread locally, and mark them as read in Palabre
         // Unfortunately the API does not have an API that could save us from doing so much processing, so we will have
         // to do a lot of iterations.
-        long oldestUnread = System.currentTimeMillis();
+        long oldestArticle = System.currentTimeMillis();
 
         for (Article article : articles) {
-            oldestUnread = Math.min(oldestUnread, article.getDate().getTime());
+            oldestArticle = Math.min(oldestArticle, article.getDate().getTime());
         }
-        Log.d("Baz", "oldest unread: "+ oldestUnread);
+        Log.d("Baz", "oldest article: "+ oldestArticle);
 
-        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/read&n=10000&nt=" + oldestUnread)
+        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/read&n=10000&ot=" + (oldestArticle/1000))
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
                 .asString()
