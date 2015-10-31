@@ -54,15 +54,15 @@ public class BazquxExtension extends PalabreExtension {
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/user-info?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
-                .asString()
-                .setCallback(new FutureCallback<String>() {
+                .asJsonObject()
+                .setCallback(new FutureCallback<JsonObject>() {
                     @Override
-                    public void onCompleted(Exception e, String resultS) {
+                    public void onCompleted(Exception e, JsonObject result) {
 
-                        Log.d("TOR", "user info " + resultS.toString());
+                        Log.d("TOR", "user info " + result.toString());
 
-                        JsonObject result = new JsonObject();
-                        result = stringToJson(resultS);
+                        //JsonObject result = new JsonObject();
+                        //result = stringToJson(resultS);
 
                         //Gson gson = new Gson();
                         //target2 = gson.fromJson(result, JsonObject.class);
@@ -107,13 +107,13 @@ public class BazquxExtension extends PalabreExtension {
         Ion.with(context).load("https://www.bazqux.com/reader/api/0/tag/list?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
-                .asString()
-                .setCallback(new FutureCallback<String>() {
+                .asJsonObject()
+                .setCallback(new FutureCallback<JsonObject>() {
                     @Override
-                    public void onCompleted(Exception e, String resultS) {
+                    public void onCompleted(Exception e, JsonObject result) {
 
-                        JsonObject result = new JsonObject();
-                        result = stringToJson(resultS);
+                        //JsonObject result = new JsonObject();
+                        //result = stringToJson(resultS);
                         //Gson gson = new Gson();
                         //result = gson.fromJson(resultS, JsonObject.class);
 
@@ -207,13 +207,13 @@ public class BazquxExtension extends PalabreExtension {
         Ion.with(context).load("https://www.bazqux.com/reader/api/0/subscription/list?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
-                .asString()
-                .setCallback(new FutureCallback<String>() {
+                .asJsonObject()
+                .setCallback(new FutureCallback<JsonObject>() {
                     @Override
-                    public void onCompleted(Exception e, String resultS) {
+                    public void onCompleted(Exception e, JsonObject result) {
 
-                        JsonObject result = new JsonObject();
-                        result = stringToJson(resultS);
+                        //JsonObject result = new JsonObject();
+                        //result = stringToJson(resultS);
                         //Gson gson = new Gson();
                         //result = gson.fromJson(resultS, JsonObject.class);
 
@@ -360,15 +360,15 @@ public class BazquxExtension extends PalabreExtension {
         Ion.with(this).load(query)
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
-                .asString()
-                .setCallback(new FutureCallback<String>() {
+                .asJsonObject()
+                .setCallback(new FutureCallback<JsonObject>() {
                     @Override
-                    public void onCompleted(Exception e, String resultS) {
+                    public void onCompleted(Exception e, JsonObject result) {
 
                         //Log.d("BAZ", "Fetch articles " + resultS.toString());
 
-                        JsonObject result = new JsonObject();
-                        result = stringToJson(resultS);
+                        //JsonObject result = new JsonObject();
+                        //result = stringToJson(resultS);
                         //Gson gson = new Gson();
                         //result = gson.fromJson(resultS, JsonObject.class);
 
@@ -551,16 +551,16 @@ public class BazquxExtension extends PalabreExtension {
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/contents?output=json&s=user/-/state/com.google/starred&n=1000")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
-                .asString()
-                .setCallback(new FutureCallback<String>() {
+                .asJsonObject()
+                .setCallback(new FutureCallback<JsonObject>() {
                     @Override
-                    public void onCompleted(Exception e, String resultS) {
+                    public void onCompleted(Exception e, JsonObject result) {
 
-                        JsonObject result = new JsonObject();
-                        Gson gson = new Gson();
-                        result = gson.fromJson(resultS, JsonObject.class);
+                        //JsonObject result = new JsonObject();
+                        //Gson gson = new Gson();
+                        //result = gson.fromJson(resultS, JsonObject.class);
 
-                        Log.d("TOR", "Starred " + resultS.toString());
+                        Log.d("TOR", "Starred " + result.toString());
 
                         if (result != null) {
                             // create a list of articles that we will save once everything has been parsed
@@ -583,8 +583,8 @@ public class BazquxExtension extends PalabreExtension {
                                         title = items.get(i).getAsJsonObject().get("title").getAsString();
                                         author = items.get(i).getAsJsonObject().get("author").getAsString();
                                         summary = items.get(i).getAsJsonObject().get("summary").getAsJsonObject().get("content").getAsString();
-                                       // To do: check Canonical
-                                        if(items.get(i).getAsJsonObject().get("canonical").getAsJsonArray().size() != 0) {
+                                        // To do: check Canonical
+                                        if (items.get(i).getAsJsonObject().get("canonical").getAsJsonArray().size() != 0) {
                                             link = items.get(i).getAsJsonObject().get("canonical").getAsJsonArray().get(0).getAsJsonObject().get("href").getAsString();
                                         }
                                         date = items.get(i).getAsJsonObject().get("crawlTimeMsec").getAsLong();
@@ -654,7 +654,7 @@ public class BazquxExtension extends PalabreExtension {
                                 Article.multipleSave(BazquxExtension.this, articles);
                             }
 
-                                publishUpdateStatus(new ExtensionUpdateStatus().progress(85));
+                            publishUpdateStatus(new ExtensionUpdateStatus().progress(85));
 
                             fetchReads(authKey);
                         } else {
@@ -693,14 +693,14 @@ public class BazquxExtension extends PalabreExtension {
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/read&n=10000&ot=" + (oldestArticle/1000))
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
-                .asString()
-                .setCallback(new FutureCallback<String>() {
+                .asJsonObject()
+                .setCallback(new FutureCallback<JsonObject>() {
                     @Override
-                    public void onCompleted(Exception e, String resultS) {
+                    public void onCompleted(Exception e, JsonObject result) {
 
-                        JsonObject result = new JsonObject();
-                        Gson gson = new Gson();
-                        result = gson.fromJson(resultS, JsonObject.class);
+                        //JsonObject result = new JsonObject();
+                        //Gson gson = new Gson();
+                        //result = gson.fromJson(resultS, JsonObject.class);
 
                         if (result != null) {
                             JsonArray items = result.get("itemRefs").getAsJsonArray();
@@ -863,12 +863,12 @@ public class BazquxExtension extends PalabreExtension {
     }
 
 
-    private static JsonObject stringToJson (String s){
+/*    private static JsonObject stringToJson (String s){
 
         JsonObject j = new JsonObject();
         Gson gson = new Gson();
         j = gson.fromJson(s, JsonObject.class);
 
         return j;
-    }
+    }*/
 }
