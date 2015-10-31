@@ -53,6 +53,7 @@ public class BazquxExtension extends PalabreExtension {
         // get user profile
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/user-info?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -105,6 +106,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(context).load("https://www.bazqux.com/reader/api/0/tag/list?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -204,6 +206,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(context).load("https://www.bazqux.com/reader/api/0/subscription/list?output=json")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -336,26 +339,26 @@ public class BazquxExtension extends PalabreExtension {
         // retrieve the sources so we can assign articles to sources (if applicable)
         final List<Source> sources = Source.getAll(this);
 
-        final long previousArticleDate = sharedPref.getLong(LATEST_ARTICLE_DATE, 0);
+        // we will save the most recent article date in milliseconds, then store it
+        // so later we can query the API for newer articles only, on a future refresh
+        long latestArticleDate = sharedPref.getLong(LATEST_ARTICLE_DATE, 0);
 
-        String query;
-        if (continuationId == 0) {
-            if (previousArticleDate == 0) {
-                // this is our first refresh, we are going to get articles newer than 3 days
-                long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
-                query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000&nt=" + firstDate;
-            } else {
-                // we do an incremental refresh
-                query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000&nt=" + previousArticleDate;
-
-            }
-        } else {
+        String query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000";
+        if (continuationId != 0) {
             // a continuation id means that the previous request had more data, and that we can query the continuation of our previous request
-            query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000&c=" + continuationId;
+            query += "&c=" + continuationId;
         }
-
+        if (latestArticleDate == 0) {
+            // this is our first refresh, we are going to get articles newer than 3 days
+            long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
+            query += "&ot=" + (firstDate/1000);
+        } else {
+            // we do an incremental refresh
+            query += "&ot=" + (latestArticleDate/1000);
+        }
         Ion.with(this).load(query)
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -376,10 +379,6 @@ public class BazquxExtension extends PalabreExtension {
 
                             if (BuildConfig.DEBUG) Log.d(TAG, "TimeTracking: request done");
 
-                            // we will save the most recent article date in milliseconds, then store it
-                            // so later we can query the API for newer articles only, on a future refresh
-                            long latestArticleDate = 0;
-
                             publishUpdateStatus(new ExtensionUpdateStatus().progress(50));
 
                             // create a list of articles that we will save once everything has been parsed
@@ -388,22 +387,33 @@ public class BazquxExtension extends PalabreExtension {
                             JsonArray items = result.get("items").getAsJsonArray();
                             for (int i = 0; i < items.size(); i++) {
 
+                                // FIXME: duplicated code here and in
+                                // starred items.
+                                // FIXMEs below apply to fetchSaved() too.
                                 String id = items.get(i).getAsJsonObject().get("id").getAsString();
                                 long date = items.get(i).getAsJsonObject().get("crawlTimeMsec").getAsLong();
 
-                                boolean found = false;
-                                for (Article article : allArticles) {
-                                    if (article.getUniqueId().equals(id) && article.getDate().getTime() == date) {
-                                        found = true;
-                                        break;
-                                    }
+                                // FIXME: code below looks for incorrect ID
+                                // and has O(n^2) complexity.
+                                // Anyway it seems that Palabre doesn't
+                                // duplicates articles with the same ID.
+//                                 boolean found = false;
+//                                 for (Article article : allArticles) {
+//                                     if (article.getUniqueId().equals(id) && article.getDate().getTime() == date) {
+//                                         found = true;
+//                                         break;
+//                                     }
 
-                                }
+//                                 }
 
-                                if (found) {
-                                    continue;
-                                }
+//                                 if (found) {
+//                                     continue;
+//                                 }
 
+                                // FIXME:
+                                // Why not
+                                //   item = items.get(i).getAsJsonObject()
+                                //   article.setTitle(item.get("title").as...)
                                 String summary = null;
                                 String title = null;
                                 String author = null;
@@ -439,15 +449,22 @@ public class BazquxExtension extends PalabreExtension {
                                 latestArticleDate = Math.max(latestArticleDate, date);
 
                                 // we need the Palabre internal id for the source
-                                long sourceId = 0;
+                                boolean sourceIdFound = false;
+                                // FIXME: O(n^2). Ineffective when there are
+                                // many feeds.
+                                // Need HashMap of sources or something like this
+                                // for O(1) checking.
                                 for (Source source : sources) {
                                     if (source.getUniqueId().equals(sourceUniqueId)) {
-                                        sourceId = source.getId();
+                                        article.setSourceId(source.getId());
+                                        sourceIdFound = true;
+                                        break;
                                     }
                                 }
 
+                                if (!sourceIdFound)
+                                    continue;
 
-                                article.setSourceId(sourceId);
 
                                 // find a picture within the article/summary using Jsoup.
                                 // Some API/Services provides the picture directly, but that's not the case here
@@ -486,7 +503,7 @@ public class BazquxExtension extends PalabreExtension {
 
 
                             JsonElement continuationObject = result.get("continuation");
-                            if (continuationObject != null && previousArticleDate == 0) {
+                            if (continuationObject != null) {
                                 // we can requery the continuation of our query
                                 Log.d("TOR", "Continuation Id detected, requery " + result.get("continuation").getAsLong());
                                 long newContinuationId = result.get("continuation").getAsLong();
@@ -530,8 +547,9 @@ public class BazquxExtension extends PalabreExtension {
 
         publishUpdateStatus(new ExtensionUpdateStatus().progress(77));
 
-        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/contents?output=json&s=user/-/state/com.google/starred&n=5000")
+        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/contents?output=json&s=user/-/state/com.google/starred&n=1000")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -595,15 +613,18 @@ public class BazquxExtension extends PalabreExtension {
 
 
                                     // we need the Palabre internal id for the source
-                                    long sourceId = 0;
+                                    boolean sourceIdFound = false;
                                     for (Source source : sources) {
                                         if (source.getUniqueId().equals(sourceUniqueId)) {
-                                            sourceId = source.getId();
+                                            starred.setSourceId(source.getId());
+                                            sourceIdFound = true;
+                                            break;
                                         }
                                     }
 
+                                    if (!sourceIdFound)
+                                        continue;
 
-                                    starred.setSourceId(sourceId);
 
                                     // find a picture within the article/summary using Jsoup.
                                     // Some API/Services provides the picture directly, but that's not the case here
@@ -650,19 +671,27 @@ public class BazquxExtension extends PalabreExtension {
         final List<Article> articles = Article.getAll(this);
 
 
-        // we need to find the oldest unread article, and then we will ask Bazqux
+        // FIXME:
+        //   Need to take in account that user can mark already read item
+        //   as unread. So it worth to take all ids.
+        // FIXME:
+        //   Highly inneffectife O(n^2) algorithm as everywhere.
+        //   Need HashMap or something like it to store read state
+        //   and update articles state later.
+        // we need to find the oldest article, and then we will ask Bazqux
         // for the read IDs since then. Then we will check if they are unread locally, and mark them as read in Palabre
         // Unfortunately the API does not have an API that could save us from doing so much processing, so we will have
         // to do a lot of iterations.
-        long oldestUnread = System.currentTimeMillis();
+        long oldestArticle = System.currentTimeMillis();
 
         for (Article article : articles) {
-            oldestUnread = Math.min(oldestUnread, article.getDate().getTime());
+            oldestArticle = Math.min(oldestArticle, article.getDate().getTime());
         }
-        Log.d("Baz", "oldest unread: "+ oldestUnread);
+        Log.d("Baz", "oldest article: "+ oldestArticle);
 
-        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/read&n=10000&nt=" + oldestUnread)
+        Ion.with(this).load("https://www.bazqux.com/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/read&n=10000&ot=" + (oldestArticle/1000))
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .asString()
                 .setCallback(new FutureCallback<String>() {
                     @Override
@@ -726,6 +755,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/edit-tag")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .setBodyParameter(action, "user/-/state/com.google/read")
                 .setBodyParameter("i", items)
                 .asString()
@@ -758,7 +788,8 @@ public class BazquxExtension extends PalabreExtension {
 
         final long timestampNs = timestamp * 1000;
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/mark-all-as-read")
-                .setHeader("Authorization: GoogleLogin auth", authKey)
+                .setHeader("Authorization", "GoogleLogin auth=" + authKey)
+                .setHeader("User-Agent", "Palabre")
                 .setBodyParameter("s", uniqueId)
                 .setBodyParameter("ts", String.valueOf(timestampNs))
                 .asString()
@@ -805,6 +836,7 @@ public class BazquxExtension extends PalabreExtension {
 
         Ion.with(this).load("https://www.bazqux.com/reader/api/0/edit-tag")
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
+                .setHeader("User-Agent", "Palabre")
                 .setBodyParameter(action, "user/-/state/com.google/starred")
                 .setBodyParameter("i", items)
                 .asString()
@@ -839,4 +871,3 @@ public class BazquxExtension extends PalabreExtension {
         return j;
     }
 }
-
