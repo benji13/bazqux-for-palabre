@@ -347,14 +347,15 @@ public class BazquxExtension extends PalabreExtension {
         if (continuationId != 0) {
             // a continuation id means that the previous request had more data, and that we can query the continuation of our previous request
             query += "&c=" + continuationId;
-        }
-        if (latestArticleDate[0] == 0) {
-            // this is our first refresh, we are going to get articles newer than 3 days
-            long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
-            query += "&ot=" + (firstDate/1000);
         } else {
-            // we do an incremental refresh
-            query += "&ot=" + (latestArticleDate[0] /1000);
+            if (latestArticleDate[0] == 0) {
+                // this is our first refresh, we are going to get articles newer than 3 days
+                long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
+                query += "&ot=" + (firstDate / 1000);
+            } else {
+                // we do an incremental refresh
+                query += "&ot=" + (latestArticleDate[0] / 1000);
+            }
         }
         Ion.with(this).load(query)
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
