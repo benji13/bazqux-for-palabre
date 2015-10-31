@@ -341,20 +341,20 @@ public class BazquxExtension extends PalabreExtension {
 
         // we will save the most recent article date in milliseconds, then store it
         // so later we can query the API for newer articles only, on a future refresh
-        long latestArticleDate = sharedPref.getLong(LATEST_ARTICLE_DATE, 0);
+        final long[] latestArticleDate = {sharedPref.getLong(LATEST_ARTICLE_DATE, 0)};
 
         String query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000";
         if (continuationId != 0) {
             // a continuation id means that the previous request had more data, and that we can query the continuation of our previous request
             query += "&c=" + continuationId;
         }
-        if (latestArticleDate == 0) {
+        if (latestArticleDate[0] == 0) {
             // this is our first refresh, we are going to get articles newer than 3 days
             long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
             query += "&ot=" + (firstDate/1000);
         } else {
             // we do an incremental refresh
-            query += "&ot=" + (latestArticleDate/1000);
+            query += "&ot=" + (latestArticleDate[0] /1000);
         }
         Ion.with(this).load(query)
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
@@ -446,7 +446,7 @@ public class BazquxExtension extends PalabreExtension {
                                 article.setDate(new Date(date));
 
                                 // always keep the most recent article date for later use
-                                latestArticleDate = Math.max(latestArticleDate, date);
+                                latestArticleDate[0] = Math.max(latestArticleDate[0], date);
 
                                 // we need the Palabre internal id for the source
                                 boolean sourceIdFound = false;
@@ -499,7 +499,7 @@ public class BazquxExtension extends PalabreExtension {
                             publishUpdateStatus(new ExtensionUpdateStatus().progress(75));
 
                             // now save a reference to the latest article date, save it, so on next refresh we will start from this date
-                            sharedPref.edit().putLong(LATEST_ARTICLE_DATE, latestArticleDate).apply();
+                            sharedPref.edit().putLong(LATEST_ARTICLE_DATE, latestArticleDate[0]).apply();
 
 
                             JsonElement continuationObject = result.get("continuation");
