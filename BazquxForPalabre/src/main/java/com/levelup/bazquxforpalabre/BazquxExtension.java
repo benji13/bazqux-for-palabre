@@ -86,7 +86,7 @@ public class BazquxExtension extends PalabreExtension {
         fetchCategories(this, authKey, new OnCategoryAndSourceRefreshed() {
             @Override
             public void onFinished() {
-                fetchArticles(authKey, 0);
+                fetchArticles(authKey, 0, 0);
             }
 
             @Override
@@ -333,7 +333,7 @@ public class BazquxExtension extends PalabreExtension {
 
     }
 
-    private void fetchArticles(final String authKey, final long continuationId) {
+    private void fetchArticles(final String authKey, final long continuationId, final long timeFromContinuation) {
         if (BuildConfig.DEBUG) Log.d(TAG, "TimeTracking: fetchArticles");
 
         // retrieve the sources so we can assign articles to sources (if applicable)
@@ -343,19 +343,31 @@ public class BazquxExtension extends PalabreExtension {
         // so later we can query the API for newer articles only, on a future refresh
         final long[] latestArticleDate = {sharedPref.getLong(LATEST_ARTICLE_DATE, 0)};
 
+        // keep the latest article date of the current incremental refresh to use if there is a continuation
+        final long timeToContinueFrom;
+
         String query = "https://www.bazqux.com/reader/api/0/stream/contents?output=json&xt=user/-/state/com.google/read&n=1000";
-        if (continuationId != 0) {
-            // a continuation id means that the previous request had more data, and that we can query the continuation of our previous request
+
+        if (continuationId != 0 && timeFromContinuation == 0) {
+            // a continuation id means that the previous request had more data, but not from particular point in time, so just continue
             query += "&c=" + continuationId;
+            timeToContinueFrom = 0;
         }
-        if (latestArticleDate[0] == 0) {
-            // this is our first refresh, we are going to get articles newer than 3 days
-            long firstDate = System.currentTimeMillis() - (TimeUnit.DAYS.toMillis(3));
-            query += "&ot=" + (firstDate/1000);
+        else if (continuationId != 0 && timeFromContinuation != 0) {
+            // a continuation id means that the previous request had more data, from particular point in time, so just continue from there
+            query += "&c=" + continuationId + "&ot=" + timeFromContinuation;
+            timeToContinueFrom = timeFromContinuation;
+        }
+        else if (latestArticleDate[0] == 0 && continuationId == 0) {
+            // this is our first refresh, we are going to get articles all articles
+            // and set no time to continue from
+            timeToContinueFrom = 0;
         } else {
             // we do an incremental refresh
             query += "&ot=" + (latestArticleDate[0] /1000);
+            timeToContinueFrom = (latestArticleDate[0] /1000);
         }
+
         Ion.with(this).load(query)
                 .setHeader("Authorization", " GoogleLogin auth="+authKey)
                 .setHeader("User-Agent", "Palabre")
@@ -507,7 +519,7 @@ public class BazquxExtension extends PalabreExtension {
                                 // we can requery the continuation of our query
                                 Log.d("TOR", "Continuation Id detected, requery " + result.get("continuation").getAsLong());
                                 long newContinuationId = result.get("continuation").getAsLong();
-                                fetchArticles(authKey, newContinuationId);
+                                fetchArticles(authKey, newContinuationId, timeToContinueFrom);
                             } else {
                                 Log.d("TOR", "No Continuation");
                                 fetchSaved(authKey);
